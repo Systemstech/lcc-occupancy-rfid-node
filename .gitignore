@@ -1,0 +1,40 @@
+# Arduino/ESP32 build files
+*.elf
+*.bin
+*.hex
+*.map
+build/
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# IDE files
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# SPIFFS data
+data/
+
+# Credentials (if you add any)
+secrets.h
+credentials.h
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
