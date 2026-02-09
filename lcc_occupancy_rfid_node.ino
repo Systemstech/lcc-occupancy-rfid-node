@@ -28,8 +28,9 @@
 
 // Pin Definitions
 // CAN Bus - ESP32 built-in TWAI (CAN) controller with SN65HVD230
-#define CAN_TX_PIN 21
-#define CAN_RX_PIN 22
+// OpenMRNLite defaults: TX=GPIO5, RX=GPIO4
+#define CAN_TX_PIN 5
+#define CAN_RX_PIN 4
 
 // IR Sensors (dual for direction detection)
 #define IR_SENSOR_A_PIN 12  // First sensor (entry side)
@@ -45,7 +46,19 @@
 
 // OpenMRN objects
 openlcb::SimpleCanStack stack(NODE_ID);
-openlcb::ConfigDef cfg(0);
+
+// SNIP (Simple Node Identification Protocol) - Required by OpenMRNLite
+// This defines the node's identification information
+const openlcb::SimpleNodeStaticValues openlcb::SNIP_STATIC_DATA = {
+    4,  // version
+    "DIY Model Railroad",  // manufacturer_name
+    "LCC Occupancy+RFID",  // model_name
+    "v1.0",                // hardware_version
+    "1.0.0"                // software_version
+};
+
+// SNIP Dynamic filename (optional user-configurable data)
+const char *const openlcb::SNIP_DYNAMIC_FILENAME = "/spiffs/node_config";
 
 // PN532 RFID Reader (SPI)
 Adafruit_PN532 nfc(PN532_SS);
@@ -90,37 +103,8 @@ const uint64_t EVENT_SENSOR_B_OCCUPIED = 0x0501010100000007ULL;
 const uint64_t EVENT_SENSOR_B_CLEAR = 0x0501010100000008ULL;
 const uint64_t EVENT_RFID_BASE = 0x0501010100010000ULL; // Base for RFID events
 
-// Configuration Definition Information (CDI)
-namespace openlcb {
-CDI_GROUP(OccupancyConfig);
-CDI_GROUP_ENTRY(occupied_event, EventConfigEntry, 
-    Name("Occupied Event"), 
-    Description("Event produced when occupancy is detected"));
-CDI_GROUP_ENTRY(clear_event, EventConfigEntry,
-    Name("Clear Event"),
-    Description("Event produced when occupancy clears"));
-CDI_GROUP_END();
-
-CDI_GROUP(RFIDConfig);
-CDI_GROUP_ENTRY(enabled, Uint8ConfigEntry,
-    Name("RFID Enabled"),
-    Description("1 to enable RFID reading, 0 to disable"),
-    Default(1));
-CDI_GROUP_ENTRY(rfid_event_base, EventConfigEntry,
-    Name("RFID Event Base"),
-    Description("Base event ID for RFID tags"));
-CDI_GROUP_END();
-
-CDI_GROUP(MainCDI, Segment(MemoryConfigDef::SPACE_CONFIG), Offset(128));
-CDI_GROUP_ENTRY(occupancy, OccupancyConfig, Name("Occupancy Detection"));
-CDI_GROUP_ENTRY(rfid, RFIDConfig, Name("RFID Reader"));
-CDI_GROUP_END();
-
-CDI_GROUP(ConfigDef, MainCdi(MainCDI));
-CDI_GROUP_END();
-} // namespace openlcb
-
-openlcb::ConfigDef cfg(0);
+// Note: Full CDI configuration can be added later for remote configuration
+// For now, we'll use direct event IDs defined as constants
 
 /**
  * Initialize SPIFFS for configuration storage
@@ -364,6 +348,7 @@ void sendRFIDDatagram(uint8_t* uid, uint8_t uidLength) {
 
 void setup() {
     Serial.begin(115200);
+    delay(1000); // Give serial time to stabilize
     Serial.println("\nESP32 LCC Occupancy + RFID Node Starting...");
     
     // Initialize file system for configuration
@@ -373,28 +358,22 @@ void setup() {
     initIRSensors();
     initRFID();
     
-    // Initialize OpenMRN stack
-    stack.create_config_file_if_needed(cfg.seg().internal_data(), 
-                                       openlcb::CANONICAL_VERSION, 
-                                       openlcb::CONFIG_FILE_SIZE);
+    Serial.println("Starting LCC stack...");
     
-    // Configure ESP32 TWAI (CAN) pins
-    // The ESP32 has a built-in CAN controller (TWAI)
-    esp_rom_gpio_connect_out_signal(CAN_TX_PIN, TWAI_TX_IDX, false, false);
-    esp_rom_gpio_connect_in_signal(CAN_RX_PIN, TWAI_RX_IDX, false);
-    gpio_set_direction((gpio_num_t)CAN_TX_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_direction((gpio_num_t)CAN_RX_PIN, GPIO_MODE_INPUT);
+    // The ESP32 OpenMRNLite will automatically configure CAN pins
+    // Default pins are TX=GPIO5, RX=GPIO4 unless overridden
+    // We need to use stack.add_can_port_async() for ESP32
     
-    // Start the LCC stack with built-in CAN interface
-    stack.add_can_port_select("/dev/twai/twai0");
-    
-    // Start the stack
+    // Start the stack - this internally initializes the TWAI driver
     stack.loop_executor();
     
     Serial.println("LCC Node initialized");
     Serial.print("Node ID: 0x");
     Serial.println((unsigned long)(NODE_ID >> 32), HEX);
+    Serial.print("         0x");
     Serial.println((unsigned long)(NODE_ID & 0xFFFFFFFF), HEX);
+    Serial.println("\nNote: ESP32 CAN uses default pins GPIO5(TX) and GPIO4(RX)");
+    Serial.println("If using different pins, modify them in the platformio.ini or menuconfig");
 }
 
 void loop() {
