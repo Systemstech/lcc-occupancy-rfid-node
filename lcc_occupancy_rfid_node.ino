@@ -36,6 +36,11 @@
 #define IR_SENSOR_A_PIN 12  // First sensor (entry side)
 #define IR_SENSOR_B_PIN 13  // Second sensor (exit side)
 
+// IR Sensor Logic Configuration
+// Set to true if your sensors output HIGH when beam is BLOCKED
+// Set to false if your sensors output LOW when beam is BLOCKED (default)
+#define IR_ACTIVE_HIGH false  // Change to true if needed
+
 // SPI for PN532
 #define PN532_SCK 18
 #define PN532_MISO 19
@@ -173,9 +178,16 @@ void checkOccupancy() {
     int readingA = digitalRead(IR_SENSOR_A_PIN);
     int readingB = digitalRead(IR_SENSOR_B_PIN);
     
-    // IR beam-break sensors typically go LOW when beam is broken (occupied)
-    bool sensorATriggered = (readingA == LOW);
-    bool sensorBTriggered = (readingB == LOW);
+    // Determine if sensors are triggered based on configuration
+    #if IR_ACTIVE_HIGH
+        // Active HIGH: Sensor outputs HIGH when beam is blocked
+        bool sensorATriggered = (readingA == HIGH);
+        bool sensorBTriggered = (readingB == HIGH);
+    #else
+        // Active LOW: Sensor outputs LOW when beam is blocked (default)
+        bool sensorATriggered = (readingA == LOW);
+        bool sensorBTriggered = (readingB == LOW);
+    #endif
     
     // Debounce Sensor A
     if (sensorATriggered != lastSensorAState) {
